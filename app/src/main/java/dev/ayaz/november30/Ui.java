@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import androidx.core.content.res.ResourcesCompat;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.checkbox.MaterialCheckBox;
@@ -34,10 +35,15 @@ final class Ui {
     // Accent, set from the chosen theme.
     static int ACCENT = 0xff7cf29a, ON_ACCENT = 0xff04210e, ACCENT_DIM = 0xff15331f;
 
-    static final Typeface MONO = Typeface.MONOSPACE;
-    static final Typeface MONO_BOLD = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD);
+    // JetBrains Mono (bundled in res/font), loaded in init().
+    static Typeface MONO = Typeface.MONOSPACE;
+    static Typeface MONO_BOLD = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD);
 
     static void init(Context c, String accent) {
+        Typeface regular = ResourcesCompat.getFont(c, R.font.jetbrains_mono_regular);
+        Typeface bold = ResourcesCompat.getFont(c, R.font.jetbrains_mono_bold);
+        if (regular != null) MONO = regular;
+        if (bold != null) MONO_BOLD = bold;
         ACCENT = accentColor(c, accent);
         ON_ACCENT = blend(ACCENT, Color.BLACK, 0.85f);
         ACCENT_DIM = blend(ACCENT, SURFACE, 0.84f);

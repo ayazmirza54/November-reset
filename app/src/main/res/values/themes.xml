@@ -30,8 +30,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:fontFamily">monospace</item>
-        <item name="fontFamily">monospace</item>
+        <item name="android:fontFamily">@font/jetbrains_mono</item>
+        <item name="fontFamily">@font/jetbrains_mono</item>
         <item name="textAppearanceDisplaySmall">@style/TextAppearance.Term.DisplaySmall</item>
         <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Term.HeadlineSmall</item>
         <item name="textAppearanceTitleLarge">@style/TextAppearance.Term.TitleLarge</item>
@@ -45,17 +45,17 @@
         <item name="textAppearanceLabelSmall">@style/TextAppearance.Term.LabelSmall</item>
     </style>
 
-    <style name="TextAppearance.Term.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.TitleLarge" parent="TextAppearance.Material3.TitleLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.TitleMedium" parent="TextAppearance.Material3.TitleMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.TitleSmall" parent="TextAppearance.Material3.TitleSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.BodyLarge" parent="TextAppearance.Material3.BodyLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.BodyMedium" parent="TextAppearance.Material3.BodyMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.BodySmall" parent="TextAppearance.Material3.BodySmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.LabelLarge" parent="TextAppearance.Material3.LabelLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.LabelMedium" parent="TextAppearance.Material3.LabelMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
-    <style name="TextAppearance.Term.LabelSmall" parent="TextAppearance.Material3.LabelSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.TitleLarge" parent="TextAppearance.Material3.TitleLarge"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.TitleMedium" parent="TextAppearance.Material3.TitleMedium"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.TitleSmall" parent="TextAppearance.Material3.TitleSmall"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.BodyLarge" parent="TextAppearance.Material3.BodyLarge"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.BodyMedium" parent="TextAppearance.Material3.BodyMedium"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.BodySmall" parent="TextAppearance.Material3.BodySmall"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.LabelLarge" parent="TextAppearance.Material3.LabelLarge"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.LabelMedium" parent="TextAppearance.Material3.LabelMedium"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
+    <style name="TextAppearance.Term.LabelSmall" parent="TextAppearance.Material3.LabelSmall"><item name="fontFamily">@font/jetbrains_mono</item><item name="android:fontFamily">@font/jetbrains_mono</item></style>
 
     <!-- Accent overlays applied at runtime from Settings. -->
     <style name="ThemeOverlay.Term.Amber" parent="">
