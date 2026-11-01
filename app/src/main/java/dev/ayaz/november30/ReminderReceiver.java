@@ -41,6 +41,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new Notification.Builder(c, Reminders.CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
+                .setColor(Ui.accentColor(c, store.accent()))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new Notification.BigTextStyle().bigText(body))
