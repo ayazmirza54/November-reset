@@ -81,11 +81,11 @@ final class Challenge {
 
     static String phase(int day) {
         switch (week(day)) {
-            case 1: return "Week 1 · Foundation — show up, keep it easy";
-            case 2: return "Week 2 · Build — raise the bar";
-            case 3: return "Week 3 · Push — full targets, no excuses";
-            case 4: return "Week 4 · Lock in — make it automatic";
-            default: return "Final days · Finish strong";
+            case 1: return "wk1 · foundation";
+            case 2: return "wk2 · build";
+            case 3: return "wk3 · push";
+            case 4: return "wk4 · lock_in";
+            default: return "final · finish_strong";
         }
     }
 }

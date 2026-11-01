@@ -1,55 +1,85 @@
 package dev.ayaz.november30;
 
 import android.Manifest;
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.TimePickerDialog;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
+import android.view.Menu;
 import android.view.View;
-import android.view.WindowInsets;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.color.DynamicColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.navigation.NavigationBarView;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.timepicker.MaterialTimePicker;
+import com.google.android.material.timepicker.TimeFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
-public class MainActivity extends Activity {
-    private static final String[] TABS = {"Today", "Month", "Stats", "Plan"};
-    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.US);
+public class MainActivity extends AppCompatActivity {
+    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("EEE dd MMM", Locale.US);
+    private static final String[] TAB_LABELS = {"today", "month", "stats", "plan"};
+    private static final int[] TAB_ICONS = {R.drawable.ic_tab_today, R.drawable.ic_tab_month,
+            R.drawable.ic_tab_stats, R.drawable.ic_tab_plan};
 
     private Store store;
     private int day;
     private int tab;
 
+    private LinearLayout root;
+    private TextView prompt;
     private ScrollView scroll;
     private LinearLayout content;
-    private LinearLayout nav;
+    private BottomNavigationView nav;
 
-    // Today-screen views that update live without a full rebuild.
-    private ProgressRing ring;
-    private TextView scoreLine;
+    // Live-updating Today views.
+    private CircularProgressIndicator ring;
+    private TextView ringText, statusLine, barLine, habitCount;
 
     @Override protected void onCreate(Bundle saved) {
-        super.onCreate(saved);
         store = new Store(this);
+        String accent = store.accent();
+        if (Ui.YOU.equals(accent) && DynamicColors.isDynamicColorAvailable()) {
+            DynamicColors.applyToActivityIfAvailable(this);
+        } else if (Ui.overlayFor(accent) != 0) {
+            getTheme().applyStyle(Ui.overlayFor(accent), true);
+        }
+        super.onCreate(saved);
+        Ui.init(this, accent);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         day = saved != null ? saved.getInt("day", Challenge.todayIndex()) : Challenge.todayIndex();
         tab = saved != null ? saved.getInt("tab", 0) : 0;
         buildShell();
         render();
+
         Reminders.createChannel(this);
         Reminders.scheduleAll(this);
         askForNotifications();
@@ -61,78 +91,91 @@ public class MainActivity extends Activity {
         out.putInt("tab", tab);
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        // Date may have rolled over while the app was in the background.
-        if (tab != 0) render();
-    }
-
     // ------------------------------------------------------------------ shell
 
     private void buildShell() {
-        LinearLayout root = Ui.vertical(this);
+        root = Ui.vertical(this);
         root.setBackgroundColor(Ui.BG);
 
         LinearLayout header = Ui.vertical(this);
-        Ui.pad(header, this, 20, 16, 20, 8);
-        TextView title = Ui.text(this, "NOVEMBER CHALLENGE", 22, Ui.GOLD, true);
-        title.setLetterSpacing(0.04f);
-        header.addView(title);
-        header.addView(Ui.text(this, "Dum ho tabhi “accept” karna", 13, Ui.MUTED, false));
+        Ui.pad(header, this, 20, 14, 20, 6);
+        LinearLayout promptRow = Ui.row(this);
+        prompt = Ui.text(this, "", 13, Ui.TEXT, false);
+        promptRow.addView(prompt);
+        TextView cursor = Ui.text(this, "█", 13, Ui.ACCENT, false);
+        promptRow.addView(cursor);
+        ObjectAnimator blink = ObjectAnimator.ofFloat(cursor, View.ALPHA, 1f, 0f);
+        blink.setDuration(530);
+        blink.setRepeatCount(ValueAnimator.INFINITE);
+        blink.setRepeatMode(ValueAnimator.REVERSE);
+        blink.setInterpolator(t -> t < 0.5f ? 0f : 1f);
+        blink.start();
+        header.addView(promptRow);
+        header.addView(Ui.text(this, "// dum ho tabhi “accept” karna", 12, Ui.MUTED, false));
         root.addView(header);
 
         scroll = new ScrollView(this);
         scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
         content = Ui.vertical(this);
-        Ui.pad(content, this, 16, 8, 16, 24);
+        Ui.pad(content, this, 16, 6, 16, 28);
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        nav = Ui.horizontal(this);
-        nav.setBackgroundColor(Ui.CARD);
-        Ui.pad(nav, this, 8, 6, 8, 6);
-        for (int i = 0; i < TABS.length; i++) {
-            final int index = i;
-            TextView t = Ui.text(this, TABS[i], 14, Ui.MUTED, true);
-            t.setGravity(Gravity.CENTER);
-            Ui.pad(t, this, 0, 12, 0, 12);
-            t.setOnClickListener(v -> { tab = index; render(); scroll.scrollTo(0, 0); });
-            nav.addView(t, Ui.weight(1));
-        }
+        nav = new BottomNavigationView(this);
+        Menu menu = nav.getMenu();
+        for (int i = 0; i < TAB_LABELS.length; i++) menu.add(Menu.NONE, i + 1, i, TAB_LABELS[i]).setIcon(TAB_ICONS[i]);
+        nav.setLabelVisibilityMode(NavigationBarView.LABEL_VISIBILITY_LABELED);
+        nav.setBackgroundColor(Ui.SURFACE);
+        nav.setItemIconTintList(Ui.checked(Ui.ACCENT, Ui.MUTED));
+        nav.setItemTextColor(Ui.checked(Ui.ACCENT, Ui.MUTED));
+        nav.setItemActiveIndicatorColor(android.content.res.ColorStateList.valueOf(Ui.ACCENT_DIM));
+        nav.setSelectedItemId(tab + 1);
+        nav.setOnItemSelectedListener(item -> {
+            tab = item.getItemId() - 1;
+            render();
+            scroll.scrollTo(0, 0);
+            return true;
+        });
+        nav.setOnItemReselectedListener(item -> scroll.smoothScrollTo(0, 0));
         root.addView(nav);
 
-        root.setOnApplyWindowInsetsListener((v, insets) -> {
-            int left, top, right, bottom;
-            if (Build.VERSION.SDK_INT >= 30) {
-                Insets i = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
-                left = i.left; top = i.top; right = i.right; bottom = i.bottom;
-            } else {
-                left = insets.getSystemWindowInsetLeft();
-                top = insets.getSystemWindowInsetTop();
-                right = insets.getSystemWindowInsetRight();
-                bottom = insets.getSystemWindowInsetBottom();
-            }
-            v.setPadding(left, top, right, bottom);
-            return insets;
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsetsCompat.CONSUMED;
         });
         setContentView(root);
     }
 
+    private void goTab(int t) {
+        if (nav.getSelectedItemId() == t + 1) { tab = t; render(); }
+        else nav.setSelectedItemId(t + 1);
+        scroll.scrollTo(0, 0);
+    }
+
+    private void setPrompt(String cmd) {
+        SpannableStringBuilder s = new SpannableStringBuilder();
+        append(s, "you@november", Ui.ACCENT);
+        append(s, ":~$ ", Ui.MUTED);
+        append(s, cmd, Ui.TEXT);
+        prompt.setText(s);
+    }
+
+    private static void append(SpannableStringBuilder s, String text, int color) {
+        int start = s.length();
+        s.append(text);
+        s.setSpan(new ForegroundColorSpan(color), start, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
     private void render() {
-        for (int i = 0; i < nav.getChildCount(); i++) {
-            TextView t = (TextView) nav.getChildAt(i);
-            boolean on = i == tab;
-            t.setTextColor(on ? Ui.BG : Ui.MUTED);
-            t.setBackground(on ? Ui.round(this, Ui.GOLD, 12) : null);
-        }
         content.removeAllViews();
         ring = null;
-        scoreLine = null;
         switch (tab) {
-            case 0: today(); break;
-            case 1: month(); break;
-            case 2: stats(); break;
-            default: plan(); break;
+            case 0: setPrompt("./challenge --day " + Ui.two(day) + " "); today(); break;
+            case 1: setPrompt("cal nov 2026 "); month(); break;
+            case 2: setPrompt("stats --all "); stats(); break;
+            default: setPrompt("cat plan.md "); plan(); break;
         }
     }
 
@@ -142,306 +185,325 @@ public class MainActivity extends Activity {
         boolean future = Challenge.isFuture(day);
         LocalDate date = Challenge.date(day);
 
-        LinearLayout dayNav = Ui.horizontal(this);
-        TextView prev = Ui.button(this, "‹", false);
-        TextView next = Ui.button(this, "›", false);
-        prev.setAlpha(day > 1 ? 1f : 0.3f);
-        next.setAlpha(day < Challenge.DAYS ? 1f : 0.3f);
-        prev.setOnClickListener(v -> { if (day > 1) { day--; render(); } });
-        next.setOnClickListener(v -> { if (day < Challenge.DAYS) { day++; render(); } });
+        LinearLayout dayNav = Ui.row(this);
+        MaterialButton prev = Ui.button(this, "<", Ui.TONAL);
+        MaterialButton next = Ui.button(this, ">", Ui.TONAL);
+        prev.setEnabled(day > 1);
+        next.setEnabled(day < Challenge.DAYS);
+        prev.setAlpha(day > 1 ? 1f : 0.35f);
+        next.setAlpha(day < Challenge.DAYS ? 1f : 0.35f);
+        prev.setOnClickListener(v -> { day--; render(); });
+        next.setOnClickListener(v -> { day++; render(); });
         LinearLayout mid = Ui.vertical(this);
         mid.setGravity(Gravity.CENTER);
-        mid.addView(Ui.text(this, "DAY " + day + " / " + Challenge.DAYS, 18, Ui.WHITE, true));
-        String sub = date.format(DAY_FMT) + (date.equals(LocalDate.now()) ? " · today" : "");
-        mid.addView(Ui.text(this, sub, 12, Ui.MUTED, false));
-        for (int i = 0; i < mid.getChildCount(); i++) ((TextView) mid.getChildAt(i)).setGravity(Gravity.CENTER);
-        dayNav.addView(prev);
+        TextView big = Ui.text(this, "DAY " + Ui.two(day) + "/" + Challenge.DAYS, 22, Ui.TEXT, true);
+        big.setGravity(Gravity.CENTER);
+        mid.addView(big);
+        boolean isToday = date.equals(LocalDate.now());
+        TextView sub = Ui.text(this, date.format(DAY_FMT).toLowerCase(Locale.US) + (isToday ? " · today" : ""),
+                12, isToday ? Ui.ACCENT : Ui.MUTED, false);
+        sub.setGravity(Gravity.CENTER);
+        mid.addView(sub);
+        dayNav.addView(prev, new LinearLayout.LayoutParams(Ui.dp(this, 56), Ui.dp(this, 48)));
         dayNav.addView(mid, Ui.weight(1));
-        dayNav.addView(next);
-        Ui.add(content, dayNav, 14);
+        dayNav.addView(next, new LinearLayout.LayoutParams(Ui.dp(this, 56), Ui.dp(this, 48)));
+        Ui.add(content, dayNav, 12);
 
-        LinearLayout summary = Ui.card(this);
-        LinearLayout row = Ui.horizontal(this);
-        ring = new ProgressRing(this);
-        int size = Ui.dp(this, 104);
-        row.addView(ring, new LinearLayout.LayoutParams(size, size));
+        // Summary card: progress ring + status output.
+        Ui.Card sum = Ui.card(this);
+        LinearLayout row = Ui.row(this);
+        FrameLayout ringBox = new FrameLayout(this);
+        ring = new CircularProgressIndicator(this);
+        ring.setIndicatorSize(Ui.dp(this, 92));
+        ring.setTrackThickness(Ui.dp(this, 9));
+        ring.setTrackCornerRadius(Ui.dp(this, 5));
+        ring.setIndicatorColor(Ui.ACCENT);
+        ring.setTrackColor(Ui.SURFACE_HI);
+        ring.setMax(Challenge.count());
+        ringBox.addView(ring, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        ringText = Ui.text(this, "", 20, Ui.TEXT, true);
+        ringText.setGravity(Gravity.CENTER);
+        ringBox.addView(ringText, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        row.addView(ringBox, new LinearLayout.LayoutParams(Ui.dp(this, 96), Ui.dp(this, 96)));
+
         LinearLayout info = Ui.vertical(this);
         Ui.pad(info, this, 16, 0, 0, 0);
-        scoreLine = Ui.text(this, "", 16, Ui.WHITE, true);
-        info.addView(scoreLine);
-        TextView phase = Ui.text(this, Challenge.phase(day), 12, Ui.GOLD, false);
-        Ui.pad(phase, this, 0, 6, 0, 0);
-        info.addView(phase);
+        statusLine = Ui.text(this, "", 13, Ui.ACCENT, true);
+        info.addView(statusLine);
+        info.addView(Ui.line(this, "> phase: " + Challenge.phase(day), Ui.MUTED));
         int workouts = store.workoutsInWeek(day);
-        TextView weekLine = Ui.text(this, "Workouts this week: " + workouts + " / " + Challenge.WORKOUTS_PER_WEEK,
-                12, workouts >= Challenge.WORKOUTS_PER_WEEK ? Ui.GREEN : Ui.MUTED, false);
-        Ui.pad(weekLine, this, 0, 4, 0, 0);
-        info.addView(weekLine);
+        info.addView(Ui.line(this, "> workouts: " + workouts + "/" + Challenge.WORKOUTS_PER_WEEK
+                + (workouts >= Challenge.WORKOUTS_PER_WEEK ? " ✓" : ""), Ui.MUTED));
+        barLine = Ui.text(this, "", 12, Ui.ACCENT, false);
+        Ui.pad(barLine, this, 0, 4, 0, 0);
+        info.addView(barLine);
         row.addView(info, Ui.weight(1));
-        summary.addView(row);
-        Ui.add(content, summary, 14);
-        updateSummary();
+        sum.body.addView(row);
+        sum.style(true);
+        Ui.add(content, sum.view, 4);
 
         if (future) {
-            TextView note = Ui.text(this, "This day hasn't started yet. Preview only — come back on "
-                    + date.format(DAY_FMT) + ".", 13, Ui.MUTED, false);
-            Ui.pad(note, this, 4, 0, 4, 10);
+            TextView note = Ui.line(this, "# locked: day hasn't started — preview only", Ui.MUTED);
+            Ui.pad(note, this, 4, 10, 4, 0);
             content.addView(note);
         }
 
+        LinearLayout sec = Ui.section(this, "habits", "");
+        habitCount = (TextView) sec.getChildAt(sec.getChildCount() - 1);
+        content.addView(sec);
         for (Habit h : Challenge.HABITS) Ui.add(content, habitCard(h, future), 10);
 
-        TextView foot = Ui.text(this, "Strong day = " + Challenge.STRONG_DAY + "+ habits. Miss a day? Never miss two.",
-                12, Ui.MUTED, false);
+        TextView foot = Ui.line(this, "# strong_day >= " + Challenge.STRONG_DAY + "/13 · never miss twice", Ui.MUTED);
         foot.setGravity(Gravity.CENTER);
         Ui.pad(foot, this, 0, 8, 0, 0);
         content.addView(foot);
+        updateSummary();
     }
 
     private void updateSummary() {
         if (ring == null) return;
         int score = store.score(day);
-        ring.set(score, Challenge.count());
-        String msg;
-        if (score == Challenge.count()) msg = "Perfect day 🔥";
-        else if (score >= Challenge.STRONG_DAY) msg = "Strong day — " + (Challenge.count() - score) + " to perfect";
-        else msg = (Challenge.STRONG_DAY - score) + " more for a strong day";
-        scoreLine.setText(msg);
+        int max = Challenge.count();
+        ring.setProgressCompat(score, true);
+        ringText.setText(Ui.two(score) + "\n/" + max);
+        if (score == max) statusLine.setText("> status: PERFECT_DAY ✓");
+        else if (score >= Challenge.STRONG_DAY) statusLine.setText("> status: STRONG_DAY (+" + (max - score) + ")");
+        else statusLine.setText("> status: " + (Challenge.STRONG_DAY - score) + " to strong_day");
+        barLine.setText(Ui.asciiBar(score, max, 13) + " " + Math.round(score * 100f / max) + "%");
+        if (habitCount != null) habitCount.setText("[" + Ui.two(score) + "/" + max + "]");
     }
 
     private String ruleFor(Habit h) {
         boolean ramp = store.ramp();
         switch (h.id) {
             case Challenge.STEPS:
-                return "Target: " + Ui.number(Challenge.target(h.id, day, ramp)) + " steps"
-                        + (ramp && Challenge.week(day) < 3 ? " (ramp-up)" : "");
+                return "target " + Ui.number(Challenge.target(h.id, day, ramp)) + " steps"
+                        + (ramp && Challenge.week(day) < 3 ? " (ramp)" : "");
             case Challenge.SKILL:
-                return store.skillName() + " · target " + Ui.number(Challenge.target(h.id, day, ramp)) + " min";
+                return store.skillName() + " · " + Ui.number(Challenge.target(h.id, day, ramp)) + " min";
             case Challenge.MEDITATE:
-                return "Target: " + Ui.number(Challenge.target(h.id, day, ramp)) + " min";
+                return "target " + Ui.number(Challenge.target(h.id, day, ramp)) + " min";
             default:
-                return h.rule;
+                return h.rule.toLowerCase(Locale.US);
         }
     }
 
     private View habitCard(Habit h, boolean future) {
-        LinearLayout card = Ui.card(this);
+        Ui.Card card = Ui.card(this);
+        Ui.pad(card.body, this, 14, 10, 6, 12);
         boolean done = store.done(day, h.id);
-        card.setBackground(done ? Ui.outlined(this, Ui.CARD, 0xff2f6b56, 16) : Ui.round(this, Ui.CARD, 16));
-        Ui.pad(card, this, 14, 10, 8, 10);
+        card.style(done);
 
-        LinearLayout top = Ui.horizontal(this);
-        TextView emoji = Ui.text(this, h.emoji, 22, Ui.WHITE, false);
-        Ui.pad(emoji, this, 0, 0, 12, 0);
-        top.addView(emoji);
+        LinearLayout top = Ui.row(this);
+        TextView idx = Ui.text(this, Ui.two(h.id + 1), 12, done ? Ui.ACCENT : Ui.MUTED, true);
+        Ui.pad(idx, this, 0, 0, 12, 0);
+        top.addView(idx);
         LinearLayout labels = Ui.vertical(this);
-        labels.addView(Ui.text(this, h.title, 15, Ui.WHITE, true));
-        labels.addView(Ui.text(this, ruleFor(h), 12, Ui.MUTED, false));
+        labels.addView(Ui.text(this, h.emoji + " " + h.title, 15, Ui.TEXT, true));
+        labels.addView(Ui.text(this, "// " + ruleFor(h), 12, Ui.MUTED, false));
         top.addView(labels, Ui.weight(1));
-        CheckBox cb = new CheckBox(this);
+        MaterialCheckBox cb = Ui.checkbox(this);
         cb.setChecked(done);
         cb.setEnabled(!future);
         cb.setContentDescription(h.title);
         top.addView(cb);
-        card.addView(top);
+        card.body.addView(top);
 
-        CompoundButton.OnCheckedChangeListener onCheck = (b, checked) -> {
+        cb.setOnCheckedChangeListener((b, checked) -> {
             store.setDone(day, h.id, checked);
-            card.setBackground(checked ? Ui.outlined(this, Ui.CARD, 0xff2f6b56, 16) : Ui.round(this, Ui.CARD, 16));
-            Ui.pad(card, this, 14, 10, 8, 10);
+            card.style(checked);
+            idx.setTextColor(checked ? Ui.ACCENT : Ui.MUTED);
             updateSummary();
-        };
-        cb.setOnCheckedChangeListener(onCheck);
-        if (h.kind == Habit.Kind.CHECK && !future) top.setOnClickListener(v -> cb.toggle());
+        });
+        if (h.kind == Habit.Kind.CHECK && !future) card.view.setOnClickListener(v -> cb.toggle());
 
         switch (h.kind) {
-            case NUMBER: card.addView(numberInput(h, cb, future)); break;
-            case TEXT: card.addView(textInput(h, cb, future)); break;
-            case WORKOUT: card.addView(workoutChips(cb, future)); break;
+            case NUMBER: card.body.addView(numberInput(h, cb, future)); break;
+            case TEXT: card.body.addView(textInput(h, cb, future)); break;
+            case WORKOUT: card.body.addView(workoutChips(cb, future)); break;
             default: break;
         }
-        return card;
+        return card.view;
     }
 
-    private View numberInput(Habit h, CheckBox cb, boolean future) {
-        LinearLayout row = Ui.horizontal(this);
-        Ui.pad(row, this, 34, 0, 8, 0);
-        if (h.id == Challenge.EXPENSE) row.addView(Ui.text(this, "₹ ", 15, Ui.MUTED, true));
-        EditText e = Ui.input(this, h.id == Challenge.EXPENSE ? "Amount spent" : "0", false);
+    private View numberInput(Habit h, MaterialCheckBox cb, boolean future) {
+        boolean expense = h.id == Challenge.EXPENSE;
+        TextInputLayout til = Ui.field(this, expense ? "spent_today" : "log", false);
+        if (expense) til.setPrefixText("₹ ");
+        else til.setSuffixText(h.unit);
+        EditText e = til.getEditText();
         e.setInputType(h.decimal ? InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
                 : InputType.TYPE_CLASS_NUMBER);
         String v = store.value(day, h.id);
         if (v != null) e.setText(v);
-        e.setEnabled(!future);
-        row.addView(e, Ui.weight(1));
-        if (h.id != Challenge.EXPENSE) {
-            TextView unit = Ui.text(this, " " + h.unit, 13, Ui.MUTED, false);
-            row.addView(unit);
-        }
+        til.setEnabled(!future);
         e.addTextChangedListener(new SimpleWatcher(s -> {
             store.setValue(day, h.id, s);
             if (!store.hasNumber(day, h.id)) return;
-            double target = Challenge.target(h.id, day, store.ramp());
-            boolean met = store.number(day, h.id) >= target;
+            boolean met = store.number(day, h.id) >= Challenge.target(h.id, day, store.ramp());
             if (cb.isChecked() != met) cb.setChecked(met);
         }));
-        return row;
+        return indent(til);
     }
 
-    private View textInput(Habit h, CheckBox cb, boolean future) {
-        EditText e = Ui.input(this, h.id == Challenge.GOALS ? "1.\n2.\n3." : "I'm grateful for…", true);
+    private View textInput(Habit h, MaterialCheckBox cb, boolean future) {
+        TextInputLayout til = Ui.field(this, h.id == Challenge.GOALS ? "goals.txt" : "gratitude.log", true);
+        til.setPlaceholderText(h.id == Challenge.GOALS ? "1. \n2. \n3. " : "grateful for…");
+        EditText e = til.getEditText();
         String v = store.value(day, h.id);
         if (v != null) e.setText(v);
-        e.setEnabled(!future);
+        til.setEnabled(!future);
         e.addTextChangedListener(new SimpleWatcher(s -> {
             store.setValue(day, h.id, s);
             boolean written = !s.trim().isEmpty();
             if (cb.isChecked() != written) cb.setChecked(written);
         }));
+        return indent(til);
+    }
+
+    private View indent(View v) {
         LinearLayout wrap = Ui.vertical(this);
-        Ui.pad(wrap, this, 34, 0, 8, 0);
-        wrap.addView(e);
+        Ui.pad(wrap, this, 26, 8, 10, 0);
+        wrap.addView(v);
         return wrap;
     }
 
-    private View workoutChips(CheckBox cb, boolean future) {
-        LinearLayout row = Ui.horizontal(this);
-        Ui.pad(row, this, 34, 6, 8, 2);
-        TextView train = Ui.chip(this, "🏋️ Trained");
-        TextView rest = Ui.chip(this, "😴 Rest day");
-        Runnable restyle = () -> {
+    private View workoutChips(MaterialCheckBox cb, boolean future) {
+        LinearLayout row = Ui.row(this);
+        Chip train = Ui.chip(this, "trained");
+        Chip rest = Ui.chip(this, "rest_day");
+        Runnable sync = () -> {
             String v = store.value(day, Challenge.WORKOUT);
-            Ui.styleChip(train, Store.WORKOUT.equals(v));
-            Ui.styleChip(rest, Store.REST.equals(v));
+            train.setChecked(Store.WORKOUT.equals(v));
+            rest.setChecked(Store.REST.equals(v));
         };
-        restyle.run();
+        sync.run();
+        train.setEnabled(!future);
+        rest.setEnabled(!future);
         View.OnClickListener pick = v -> {
-            if (future) return;
             String choice = v == train ? Store.WORKOUT : Store.REST;
             String current = store.value(day, Challenge.WORKOUT);
             if (choice.equals(current)) {
                 store.setValue(day, Challenge.WORKOUT, null);
                 cb.setChecked(false);
+            } else if (Store.REST.equals(choice)
+                    && store.restDaysInWeek(day, day) >= Challenge.maxRestDays(day)) {
+                snack("rest_day limit reached this week — time to train");
             } else {
-                if (Store.REST.equals(choice)
-                        && store.restDaysInWeek(day, day) >= Challenge.maxRestDays(day)) {
-                    toast("Rest-day limit reached for this week — time to train!");
-                    return;
-                }
                 store.setValue(day, Challenge.WORKOUT, choice);
                 cb.setChecked(true);
             }
-            restyle.run();
+            sync.run();
         };
         train.setOnClickListener(pick);
         rest.setOnClickListener(pick);
         row.addView(train);
-        View gap = new View(this);
-        row.addView(gap, new LinearLayout.LayoutParams(Ui.dp(this, 8), 1));
+        row.addView(Ui.gap(this, 8));
         row.addView(rest);
-        // The checkbox alone can't encode workout vs rest, so route it through the chips.
+        // The checkbox can't say "workout vs rest", so keep it consistent with the chips.
         cb.setOnClickListener(v -> {
             if (cb.isChecked() && store.value(day, Challenge.WORKOUT) == null) {
                 store.setValue(day, Challenge.WORKOUT, Store.WORKOUT);
             } else if (!cb.isChecked()) {
                 store.setValue(day, Challenge.WORKOUT, null);
             }
-            restyle.run();
+            sync.run();
         });
-        return row;
+        return indent(row);
     }
 
     // ------------------------------------------------------------------ month
 
     private void month() {
-        content.addView(Ui.section(this, "NOVEMBER 2026"));
-        LinearLayout card = Ui.card(this);
-        Ui.pad(card, this, 8, 12, 8, 12);
-        LinearLayout head = Ui.horizontal(this);
-        for (String n : new String[]{"S", "M", "T", "W", "T", "F", "S"}) {
-            TextView t = Ui.text(this, n, 12, Ui.MUTED, true);
+        content.addView(Ui.section(this, "november_2026", "tap a day"));
+        Ui.Card card = Ui.card(this);
+        Ui.pad(card.body, this, 8, 12, 8, 12);
+        LinearLayout head = Ui.row(this);
+        for (String n : new String[]{"su", "mo", "tu", "we", "th", "fr", "sa"}) {
+            TextView t = Ui.text(this, n, 11, Ui.MUTED, true);
             t.setGravity(Gravity.CENTER);
             head.addView(t, Ui.weight(1));
         }
-        Ui.add(card, head, 6);
+        Ui.add(card.body, head, 6);
 
         int offset = Challenge.START.getDayOfWeek().getValue() % 7; // Sunday = 0
         int today = Challenge.isActiveToday() ? Challenge.todayIndex() : -1;
-        int cells = offset + Challenge.DAYS;
-        int rows = (cells + 6) / 7;
+        int rows = (offset + Challenge.DAYS + 6) / 7;
         for (int r = 0; r < rows; r++) {
-            LinearLayout week = Ui.horizontal(this);
+            LinearLayout week = Ui.row(this);
             for (int c = 0; c < 7; c++) {
                 int d = r * 7 + c - offset + 1;
-                TextView cell = Ui.text(this, "", 14, Ui.WHITE, false);
+                TextView cell = Ui.text(this, "", 13, Ui.TEXT, true);
                 cell.setGravity(Gravity.CENTER);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1);
-                lp.setMargins(Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3), Ui.dp(this, 3));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 46), 1);
+                int m = Ui.dp(this, 3);
+                lp.setMargins(m, m, m, m);
                 if (d >= 1 && d <= Challenge.DAYS) {
                     int score = store.score(d);
                     boolean fut = Challenge.isFuture(d);
-                    cell.setText(d + (fut || score == 0 ? "" : "\n" + score));
-                    cell.setTextSize(fut || score == 0 ? 14 : 12);
-                    int color = fut ? Ui.BG : heat(score);
-                    cell.setBackground(d == today ? Ui.outlined(this, color, Ui.GOLD, 10) : Ui.round(this, color, 10));
-                    cell.setTextColor(fut ? Ui.MUTED : Ui.WHITE);
+                    int fill = fut ? Ui.BG : heat(score);
+                    cell.setText(Ui.two(d));
+                    cell.setTextColor(fut ? Ui.MUTED : score == Challenge.count() ? Ui.ON_ACCENT : Ui.TEXT);
+                    if (d == today) cell.setBackground(Ui.outlined(this, fill, Ui.ACCENT, 12, 2));
+                    else if (fut) cell.setBackground(Ui.outlined(this, fill, Ui.OUTLINE, 12, 1));
+                    else cell.setBackground(Ui.round(this, fill, 12));
                     final int pick = d;
-                    cell.setOnClickListener(v -> { day = pick; tab = 0; render(); scroll.scrollTo(0, 0); });
+                    cell.setOnClickListener(v -> { day = pick; goTab(0); });
                 }
                 week.addView(cell, lp);
             }
-            card.addView(week);
+            card.body.addView(week);
         }
-        Ui.add(content, card, 8);
+        Ui.add(content, card.view, 8);
 
-        LinearLayout legend = Ui.horizontal(this);
+        LinearLayout legend = Ui.row(this);
         legend.setGravity(Gravity.CENTER);
-        legendItem(legend, heat(0), "0");
-        legendItem(legend, heat(5), "1–6");
-        legendItem(legend, heat(8), "7–9");
-        legendItem(legend, heat(11), "10–12");
-        legendItem(legend, heat(13), "13");
-        Ui.add(content, legend, 16);
+        legend.addView(Ui.text(this, "less ", 11, Ui.MUTED, false));
+        for (int s : new int[]{0, 4, 8, 11, 13}) {
+            View sw = new View(this);
+            sw.setBackground(Ui.round(this, heat(s), 3));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 14), Ui.dp(this, 14));
+            lp.setMargins(Ui.dp(this, 2), 0, Ui.dp(this, 2), 0);
+            legend.addView(sw, lp);
+        }
+        legend.addView(Ui.text(this, " more", 11, Ui.MUTED, false));
+        Ui.add(content, legend, 8);
 
-        content.addView(Ui.section(this, "WEEKLY REVIEW"));
+        content.addView(Ui.section(this, "weekly_review", null));
         for (int start = 1; start <= Challenge.DAYS; start += 7) {
             int end = Challenge.weekEnd(start);
-            int pts = 0, max = 0, strong = 0;
+            int len = end - start + 1;
+            int pts = 0, strong = 0;
             for (int d = start; d <= end; d++) {
-                pts += store.score(d);
-                max += Challenge.count();
-                if (store.score(d) >= Challenge.STRONG_DAY) strong++;
+                int s = store.score(d);
+                pts += s;
+                if (s >= Challenge.STRONG_DAY) strong++;
             }
-            LinearLayout w = Ui.card(this);
-            LinearLayout top = Ui.horizontal(this);
-            top.addView(Ui.text(this, "Week " + Challenge.week(start) + "  ·  Nov " + start + "–" + end,
-                    14, Ui.WHITE, true), Ui.weight(1));
-            top.addView(Ui.text(this, pts + " / " + max, 14, Ui.GOLD, true));
-            Ui.add(w, top, 8);
-            Ui.add(w, Ui.bar(this, max == 0 ? 0 : pts / (float) max, Ui.GOLD), 8);
+            int max = len * Challenge.count();
             int workouts = store.workoutsInWeek(start);
-            int need = end - start + 1 >= 7 ? Challenge.WORKOUTS_PER_WEEK : 1;
-            w.addView(Ui.text(this, "Workouts " + workouts + "/" + need + "  ·  Strong days " + strong
-                    + "/" + (end - start + 1), 12, workouts >= need ? Ui.GREEN : Ui.MUTED, false));
-            Ui.add(content, w, 10);
+            int need = len >= 7 ? Challenge.WORKOUTS_PER_WEEK : 1;
+
+            Ui.Card w = Ui.card(this);
+            LinearLayout top = Ui.row(this);
+            top.addView(Ui.text(this, "wk" + Challenge.week(start), 14, Ui.TEXT, true));
+            top.addView(Ui.text(this, "  nov " + Ui.two(start) + "–" + Ui.two(end), 12, Ui.MUTED, false), Ui.weight(1));
+            top.addView(Ui.text(this, pts + "/" + max, 14, Ui.ACCENT, true));
+            Ui.add(w.body, top, 10);
+            Ui.add(w.body, Ui.progress(this, pts, max, Ui.ACCENT, 6), 10);
+            w.body.addView(Ui.text(this, "strong " + strong + "/" + len + "  ·  workouts " + workouts + "/" + need
+                    + (workouts >= need ? " ✓" : ""), 12, workouts >= need ? Ui.ACCENT : Ui.MUTED, false));
+            Ui.add(content, w.view, 10);
         }
     }
 
     private int heat(int score) {
-        if (score == 0) return Ui.CARD_2;
-        if (score == Challenge.count()) return Ui.GREEN;
-        if (score >= Challenge.STRONG_DAY) return 0xff2f6b56;
-        if (score >= 7) return 0xff5c5426;
-        return 0xff4a3a2a;
-    }
-
-    private void legendItem(LinearLayout parent, int color, String label) {
-        View sw = new View(this);
-        sw.setBackground(Ui.round(this, color, 3));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 12), Ui.dp(this, 12));
-        lp.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 4), 0);
-        parent.addView(sw, lp);
-        parent.addView(Ui.text(this, label, 11, Ui.MUTED, false));
+        if (score == 0) return Ui.SURFACE_HI;
+        if (score == Challenge.count()) return Ui.ACCENT;
+        if (score >= Challenge.STRONG_DAY) return Ui.blend(Ui.ACCENT, Ui.SURFACE, 0.45f);
+        if (score >= 7) return Ui.blend(Ui.ACCENT, Ui.SURFACE, 0.65f);
+        return Ui.blend(Ui.ACCENT, Ui.SURFACE, 0.82f);
     }
 
     // ------------------------------------------------------------------ stats
@@ -455,22 +517,28 @@ public class MainActivity extends Activity {
             if (s == Challenge.count()) perfect++;
             if (s >= Challenge.STRONG_DAY) { strong++; run++; best = Math.max(best, run); } else run = 0;
         }
-        int pct = Math.round(total * 100f / Challenge.maxPoints());
+        int maxPts = Challenge.maxPoints();
+        int goal = Math.round(maxPts * 0.8f);
+        int pct = Math.round(total * 100f / maxPts);
 
-        LinearLayout hero = Ui.card(this);
-        hero.addView(Ui.text(this, "CHALLENGE SCORE", 12, Ui.GOLD, true));
-        hero.addView(Ui.text(this, total + " / " + Challenge.maxPoints(), 34, Ui.WHITE, true));
-        Ui.add(hero, Ui.text(this, pct + "% · goal is 80% (" + Math.round(Challenge.maxPoints() * 0.8)
-                + " pts)", 13, pct >= 80 ? Ui.GREEN : Ui.MUTED, false), 10);
-        Ui.add(hero, Ui.bar(this, total / (float) Challenge.maxPoints(), pct >= 80 ? Ui.GREEN : Ui.GOLD), 0);
-        Ui.add(content, hero, 12);
+        Ui.Card hero = Ui.card(this);
+        hero.style(true);
+        hero.body.addView(Ui.text(this, "$ score --total", 12, Ui.MUTED, false));
+        TextView score = Ui.text(this, total + "/" + maxPts, 36, Ui.ACCENT, true);
+        Ui.pad(score, this, 0, 4, 0, 0);
+        hero.body.addView(score);
+        Ui.add(hero.body, Ui.text(this, pct + "% · win at 80% = " + goal + " pts"
+                + (total >= goal ? " ✓" : " · " + (goal - total) + " to go"), 12, Ui.MUTED, false), 12);
+        Ui.add(hero.body, Ui.progress(this, total, maxPts, Ui.ACCENT, 10), 0);
+        Ui.add(content, hero.view, 10);
 
-        LinearLayout tiles = Ui.horizontal(this);
-        tile(tiles, String.valueOf(currentStreak()), "current streak");
-        tile(tiles, String.valueOf(best), "best streak");
-        tile(tiles, strong + "", "strong days");
-        tile(tiles, perfect + "", "perfect days");
-        Ui.add(content, tiles, 16);
+        LinearLayout r1 = Ui.row(this), r2 = Ui.row(this);
+        tile(r1, String.valueOf(currentStreak()), "streak");
+        tile(r1, String.valueOf(best), "best_streak");
+        tile(r2, String.valueOf(strong), "strong_days");
+        tile(r2, String.valueOf(perfect), "perfect_days");
+        Ui.add(content, r1, 8);
+        Ui.add(content, r2, 4);
 
         double steps = 0, sleep = 0, pages = 0, skill = 0, meditate = 0, spend = 0;
         int sleepDays = 0, spendDays = 0, workouts = 0;
@@ -483,39 +551,40 @@ public class MainActivity extends Activity {
             if (store.hasNumber(d, Challenge.EXPENSE)) { spend += store.number(d, Challenge.EXPENSE); spendDays++; }
             if (Store.WORKOUT.equals(store.value(d, Challenge.WORKOUT))) workouts++;
         }
-        content.addView(Ui.section(this, "TOTALS"));
-        LinearLayout totals = Ui.card(this);
-        statRow(totals, "🚶 Steps walked", Ui.number(steps) + "  (~" + Ui.number(Math.round(steps * 0.00075)) + " km)");
-        statRow(totals, "🌙 Average sleep", sleepDays == 0 ? "—" : String.format(Locale.US, "%.1f hrs", sleep / sleepDays));
-        statRow(totals, "💪 Workouts", workouts + " sessions");
-        statRow(totals, "📖 Pages read", Ui.number(pages) + "  (~" + Math.max(0, Math.round(pages / 250)) + " books)");
-        statRow(totals, "🧠 " + store.skillName(), String.format(Locale.US, "%.1f hrs", skill / 60));
-        statRow(totals, "🧘 Meditation", Ui.number(meditate) + " min");
-        statRow(totals, "💸 Spent", "₹" + Ui.number(spend)
-                + (spendDays == 0 ? "" : "  (₹" + Ui.number(Math.round(spend / spendDays)) + "/day)"));
-        Ui.add(content, totals, 16);
+        content.addView(Ui.section(this, "totals", null));
+        Ui.Card totals = Ui.card(this);
+        kv(totals.body, "steps", Ui.number(steps) + " (~" + Ui.number(Math.round(steps * 0.00075)) + " km)");
+        kv(totals.body, "avg_sleep", sleepDays == 0 ? "--" : String.format(Locale.US, "%.1f h", sleep / sleepDays));
+        kv(totals.body, "workouts", String.valueOf(workouts));
+        kv(totals.body, "pages", Ui.number(pages));
+        kv(totals.body, "skill", String.format(Locale.US, "%.1f h", skill / 60));
+        kv(totals.body, "meditation", Ui.number(meditate) + " min");
+        kv(totals.body, "spent", "₹" + Ui.number(spend)
+                + (spendDays == 0 ? "" : " (₹" + Ui.number(Math.round(spend / spendDays)) + "/d)"));
+        Ui.add(content, totals.view, 4);
 
-        content.addView(Ui.section(this, "HABIT CONSISTENCY"));
-        LinearLayout per = Ui.card(this);
+        content.addView(Ui.section(this, "consistency", elapsed + " days"));
+        Ui.Card per = Ui.card(this);
         for (Habit h : Challenge.HABITS) {
             int n = 0;
             for (int d = 1; d <= Challenge.DAYS; d++) if (store.done(d, h.id)) n++;
-            float f = elapsed == 0 ? 0 : n / (float) elapsed;
-            LinearLayout r = Ui.horizontal(this);
-            r.addView(Ui.text(this, h.emoji + "  " + h.title, 13, Ui.WHITE, false), Ui.weight(1));
-            r.addView(Ui.text(this, n + "/" + elapsed, 13, f >= 0.8f ? Ui.GREEN : Ui.MUTED, true));
-            Ui.add(per, r, 4);
-            Ui.add(per, Ui.bar(this, f, f >= 0.8f ? Ui.GREEN : Ui.GOLD), 12);
+            boolean good = elapsed > 0 && n >= 0.8f * elapsed;
+            LinearLayout r = Ui.row(this);
+            r.addView(Ui.text(this, Ui.two(h.id + 1) + " " + h.title, 12, Ui.TEXT, false), Ui.weight(1));
+            r.addView(Ui.text(this, n + "/" + elapsed, 12, good ? Ui.ACCENT : Ui.MUTED, true));
+            Ui.add(per.body, r, 6);
+            Ui.add(per.body, Ui.progress(this, n, Math.max(1, elapsed),
+                    good ? Ui.ACCENT : Ui.blend(Ui.ACCENT, Ui.MUTED, 0.5f), 4), 12);
         }
-        Ui.add(content, per, 16);
+        Ui.add(content, per.view, 16);
 
-        TextView share = Ui.button(this, "SHARE MY PROGRESS", true);
+        MaterialButton share = Ui.button(this, "$ share --progress", Ui.FILLED);
         final int totalF = total, strongF = strong;
         share.setOnClickListener(v -> {
-            String msg = "November Challenge — Day " + Challenge.todayIndex() + "/30\n"
-                    + "Score: " + totalF + "/" + Challenge.maxPoints() + " (" + pct + "%)\n"
-                    + "Strong days: " + strongF + " · Current streak: " + currentStreak() + "\n"
-                    + "Dum ho tabhi accept karna 💪";
+            String msg = "november_challenge — day " + Challenge.todayIndex() + "/30\n"
+                    + "score: " + totalF + "/" + maxPts + " (" + pct + "%)\n"
+                    + "strong_days: " + strongF + " · streak: " + currentStreak() + "\n"
+                    + "dum ho tabhi accept karna 💪";
             Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, msg);
             startActivity(Intent.createChooser(send, "Share progress"));
         });
@@ -533,135 +602,160 @@ public class MainActivity extends Activity {
     }
 
     private void tile(LinearLayout parent, String value, String label) {
-        LinearLayout t = Ui.vertical(this);
-        t.setBackground(Ui.round(this, Ui.CARD, 14));
-        t.setGravity(Gravity.CENTER);
-        Ui.pad(t, this, 4, 12, 4, 12);
-        TextView v = Ui.text(this, value, 22, Ui.WHITE, true);
-        v.setGravity(Gravity.CENTER);
-        TextView l = Ui.text(this, label, 10, Ui.MUTED, false);
-        l.setGravity(Gravity.CENTER);
-        t.addView(v);
-        t.addView(l);
+        Ui.Card t = Ui.card(this);
+        t.body.addView(Ui.text(this, value, 26, Ui.TEXT, true));
+        t.body.addView(Ui.text(this, label, 11, Ui.MUTED, false));
         LinearLayout.LayoutParams lp = Ui.weight(1);
-        lp.setMargins(Ui.dp(this, 3), 0, Ui.dp(this, 3), 0);
-        parent.addView(t, lp);
+        int m = Ui.dp(this, 4);
+        lp.setMargins(parent.getChildCount() == 0 ? 0 : m, 0, parent.getChildCount() == 0 ? m : 0, 0);
+        parent.addView(t.view, lp);
     }
 
-    private void statRow(LinearLayout parent, String label, String value) {
-        LinearLayout r = Ui.horizontal(this);
-        Ui.pad(r, this, 0, 6, 0, 6);
-        r.addView(Ui.text(this, label, 14, Ui.WHITE, false), Ui.weight(1));
-        r.addView(Ui.text(this, value, 14, Ui.GOLD, true));
+    private void kv(LinearLayout parent, String key, String value) {
+        LinearLayout r = Ui.row(this);
+        Ui.pad(r, this, 0, 5, 0, 5);
+        r.addView(Ui.text(this, key, 13, Ui.MUTED, false), Ui.weight(1));
+        r.addView(Ui.text(this, value, 13, Ui.TEXT, true));
         parent.addView(r);
     }
 
     // ------------------------------------------------------------------ plan & settings
 
     private void plan() {
-        content.addView(Ui.section(this, "THE RULES"));
-        LinearLayout rules = Ui.card(this);
-        bullet(rules, "30 days, 13 habits, 390 points. Hit 80% (312) and you've won.");
-        bullet(rules, "A strong day is 10+ habits. Perfect days are a bonus, not the bar.");
-        bullet(rules, "Workout 4–5× a week; the other days are planned rest (max 3/week).");
-        bullet(rules, "Never miss twice. One bad day is noise, two is a new habit.");
-        bullet(rules, "Log honestly. Only you see this data — it never leaves your phone.");
-        Ui.add(content, rules, 12);
+        content.addView(Ui.section(this, "rules", null));
+        Ui.Card rules = Ui.card(this);
+        bullets(rules.body,
+                "30 days × 13 habits = 390 pts",
+                "win at 80% = 312 pts",
+                "strong_day = 10+ habits; perfect = 13",
+                "workout 4–5×/wk, max 3 rest_days",
+                "never miss twice in a row",
+                "data stays on this device");
+        Ui.add(content, rules.view, 4);
 
-        content.addView(Ui.section(this, "4-WEEK RAMP"));
-        LinearLayout ramp = Ui.card(this);
-        bullet(ramp, "Week 1 (Nov 1–7) — Foundation: 7K steps, 10 min meditation, 30 min skill.");
-        bullet(ramp, "Week 2 (Nov 8–14) — Build: 8.5K steps, 15 min meditation, 45 min skill.");
-        bullet(ramp, "Week 3 (Nov 15–21) — Push: full 10K steps, every habit at full target.");
-        bullet(ramp, "Week 4+ (Nov 22–30) — Lock in: same targets, aim for 11+/13 daily.");
-        Ui.add(content, ramp, 12);
+        content.addView(Ui.section(this, "ramp", store.ramp() ? "on" : "off"));
+        Ui.Card ramp = Ui.card(this);
+        ramp.body.addView(Ui.line(this, "wk  dates   steps  med  skill", Ui.MUTED));
+        ramp.body.addView(Ui.line(this, "1   01–07   7.0k  10m  30m", Ui.TEXT));
+        ramp.body.addView(Ui.line(this, "2   08–14   8.5k  15m  45m", Ui.TEXT));
+        ramp.body.addView(Ui.line(this, "3   15–21  10.0k  15m  45m", Ui.TEXT));
+        ramp.body.addView(Ui.line(this, "4+  22–30  10.0k  15m  45m", Ui.ACCENT));
+        Ui.add(content, ramp.view, 4);
 
-        content.addView(Ui.section(this, "DAILY BLUEPRINT"));
-        LinearLayout bp = Ui.card(this);
-        bullet(bp, "6:30 — Wake. Phone stays on the charger for 60 min.");
-        bullet(bp, "6:40 — Water, 10–15 min meditation, write 3 goals.");
-        bullet(bp, "7:00 — Workout or a brisk 30-min walk (≈ 4K steps).");
-        bullet(bp, "Meals — home food, no phone at the table.");
-        bullet(bp, "Lunch/evening — walk after meals to close the step gap.");
-        bullet(bp, "Evening — 45 min deep skill practice, then 10-min room/desk reset.");
-        bullet(bp, "21:30 — Log expenses, read 10 pages, write 3 gratitudes.");
-        bullet(bp, "22:30 — Lights out for 7–8 hours of sleep.");
-        Ui.add(content, bp, 16);
+        content.addView(Ui.section(this, "daily_blueprint", null));
+        Ui.Card bp = Ui.card(this);
+        schedule(bp.body, "06:30", "wake · phone on charger 60 min");
+        schedule(bp.body, "06:40", "water → meditate → 3 goals");
+        schedule(bp.body, "07:00", "workout / 30-min brisk walk");
+        schedule(bp.body, "meals", "home food · phone away");
+        schedule(bp.body, "post ", "15-min walks after meals");
+        schedule(bp.body, "18:30", "45 min skill → 10-min tidy");
+        schedule(bp.body, "21:30", "log ₹ · read 10 pg · gratitude");
+        schedule(bp.body, "22:30", "lights out (7–8 h)");
+        Ui.add(content, bp.view, 4);
 
-        content.addView(Ui.section(this, "SETTINGS"));
-        LinearLayout s = Ui.card(this);
+        content.addView(Ui.section(this, "config", null));
+        Ui.Card s = Ui.card(this);
 
-        s.addView(Ui.text(this, "Skill you're mastering", 13, Ui.MUTED, false));
-        EditText skill = Ui.input(this, "e.g. Terraform, guitar, Spanish", false);
-        skill.setText(store.skillName());
-        skill.addTextChangedListener(new SimpleWatcher(t -> {
+        TextInputLayout skill = Ui.field(this, "skill_name", false);
+        skill.getEditText().setText(store.skillName());
+        skill.getEditText().addTextChangedListener(new SimpleWatcher(t -> {
             if (!t.trim().isEmpty()) store.setSkillName(t.trim());
         }));
-        Ui.add(s, skill, 12);
+        Ui.add(s.body, skill, 10);
 
-        Switch rampSw = settingSwitch(s, "Ramp-up targets (weeks 1–2)", store.ramp());
+        MaterialSwitch rampSw = Ui.toggle(this, "ramp_up_targets", store.ramp());
         rampSw.setOnCheckedChangeListener((b, on) -> store.setRamp(on));
+        Ui.add(s.body, rampSw, 2);
 
-        Switch remSw = settingSwitch(s, "Daily reminders", store.remindersOn());
-        TextView morning = Ui.button(this, "Morning · " + Ui.time(store.morningReminder()), false);
-        TextView evening = Ui.button(this, "Evening · " + Ui.time(store.eveningReminder()), false);
+        MaterialSwitch remSw = Ui.toggle(this, "daily_reminders", store.remindersOn());
+        Ui.add(s.body, remSw, 8);
+        MaterialButton morning = Ui.button(this, "am " + Ui.time(store.morningReminder()), Ui.TONAL);
+        MaterialButton evening = Ui.button(this, "pm " + Ui.time(store.eveningReminder()), Ui.TONAL);
         remSw.setOnCheckedChangeListener((b, on) -> {
             store.setRemindersOn(on);
             Reminders.scheduleAll(this);
             if (on) askForNotifications();
         });
-        morning.setOnClickListener(v -> pickTime(store.morningReminder(), m -> {
+        morning.setOnClickListener(v -> pickTime("morning reminder", store.morningReminder(), m -> {
             store.setMorningReminder(m);
-            morning.setText("Morning · " + Ui.time(m));
+            morning.setText("am " + Ui.time(m));
         }));
-        evening.setOnClickListener(v -> pickTime(store.eveningReminder(), m -> {
+        evening.setOnClickListener(v -> pickTime("evening reminder", store.eveningReminder(), m -> {
             store.setEveningReminder(m);
-            evening.setText("Evening · " + Ui.time(m));
+            evening.setText("pm " + Ui.time(m));
         }));
-        LinearLayout times = Ui.horizontal(this);
+        LinearLayout times = Ui.row(this);
         times.addView(morning, Ui.weight(1));
-        View gap = new View(this);
-        times.addView(gap, new LinearLayout.LayoutParams(Ui.dp(this, 8), 1));
+        times.addView(Ui.gap(this, 8));
         times.addView(evening, Ui.weight(1));
-        Ui.add(s, times, 4);
-        Ui.add(content, s, 16);
+        Ui.add(s.body, times, 14);
 
-        TextView reset = Ui.button(this, "Reset all progress", false);
-        reset.setTextColor(Ui.RED);
-        reset.setOnClickListener(v -> new AlertDialog.Builder(this)
+        s.body.addView(Ui.text(this, "accent", 12, Ui.MUTED, false));
+        LinearLayout accents = Ui.row(this);
+        Ui.pad(accents, this, 0, 4, 0, 0);
+        String current = store.accent();
+        String[][] options = {{Ui.GREEN, "green"}, {Ui.AMBER, "amber"}, {Ui.CYAN, "cyan"}, {Ui.YOU, "you"}};
+        for (String[] o : options) {
+            if (Ui.YOU.equals(o[0]) && !Ui.dynamicAvailable()) continue;
+            Chip chip = Ui.chip(this, o[1]);
+            chip.setChecked(o[0].equals(current));
+            chip.setOnClickListener(v -> {
+                if (o[0].equals(store.accent())) { chip.setChecked(true); return; }
+                store.setAccent(o[0]);
+                recreate();
+            });
+            accents.addView(chip);
+            accents.addView(Ui.gap(this, 6));
+        }
+        hScroll(s.body, accents);
+        Ui.add(content, s.view, 14);
+
+        MaterialButton reset = Ui.button(this, "rm -rf progress/", Ui.OUTLINED);
+        reset.setTextColor(Ui.ERROR);
+        reset.setStrokeColor(android.content.res.ColorStateList.valueOf(Ui.blend(Ui.ERROR, Ui.SURFACE, 0.5f)));
+        reset.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
                 .setTitle("Reset all progress?")
-                .setMessage("This erases every logged habit, number and note. Settings are kept. This can't be undone.")
+                .setMessage("Erases every logged habit, number and note. Settings are kept. Can't be undone.")
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Reset", (d, w) -> { store.resetProgress(); toast("Progress cleared"); render(); })
+                .setPositiveButton("Reset", (d, w) -> { store.resetProgress(); render(); snack("progress cleared"); })
                 .show());
         Ui.add(content, reset, 0);
     }
 
-    private void bullet(LinearLayout parent, String s) {
-        TextView t = Ui.text(this, "•  " + s, 13, Ui.WHITE, false);
-        t.setLineSpacing(0, 1.15f);
-        Ui.pad(t, this, 0, 3, 0, 3);
-        parent.addView(t);
+    private void hScroll(LinearLayout parent, View child) {
+        android.widget.HorizontalScrollView h = new android.widget.HorizontalScrollView(this);
+        h.setHorizontalScrollBarEnabled(false);
+        h.addView(child);
+        parent.addView(h);
     }
 
-    private Switch settingSwitch(LinearLayout parent, String label, boolean on) {
-        Switch sw = new Switch(this);
-        sw.setText(label);
-        sw.setTextColor(Ui.WHITE);
-        sw.setTextSize(14);
-        sw.setChecked(on);
-        Ui.pad(sw, this, 0, 6, 0, 6);
-        Ui.add(parent, sw, 8);
-        return sw;
+    private void bullets(LinearLayout parent, String... lines) {
+        for (String l : lines) parent.addView(Ui.line(this, "> " + l, Ui.TEXT));
+    }
+
+    private void schedule(LinearLayout parent, String time, String what) {
+        LinearLayout r = Ui.row(this);
+        Ui.pad(r, this, 0, 3, 0, 3);
+        r.addView(Ui.text(this, time + "  ", 13, Ui.ACCENT, true));
+        r.addView(Ui.text(this, what, 13, Ui.TEXT, false), Ui.weight(1));
+        parent.addView(r);
     }
 
     private interface MinutePicked { void on(int minutes); }
 
-    private void pickTime(int current, MinutePicked cb) {
-        new TimePickerDialog(this, (view, h, m) -> {
-            cb.on(h * 60 + m);
+    private void pickTime(String title, int current, MinutePicked cb) {
+        MaterialTimePicker picker = new MaterialTimePicker.Builder()
+                .setTimeFormat(TimeFormat.CLOCK_24H)
+                .setHour(current / 60)
+                .setMinute(current % 60)
+                .setTitleText(title)
+                .build();
+        picker.addOnPositiveButtonClickListener(v -> {
+            cb.on(picker.getHour() * 60 + picker.getMinute());
             Reminders.scheduleAll(this);
-        }, current / 60, current % 60, false).show();
+        });
+        picker.show(getSupportFragmentManager(), "time");
     }
 
     private void askForNotifications() {
@@ -672,7 +766,9 @@ public class MainActivity extends Activity {
         requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7);
     }
 
-    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+    private void snack(String s) {
+        Snackbar.make(root, s, Snackbar.LENGTH_SHORT).setAnchorView(nav).show();
+    }
 
     /** TextWatcher that only cares about the final text. */
     private static final class SimpleWatcher implements TextWatcher {

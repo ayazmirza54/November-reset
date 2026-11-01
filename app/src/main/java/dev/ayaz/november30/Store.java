@@ -61,6 +61,10 @@ final class Store {
     String skillName() { return p.getString("skill", "Terraform / AWS"); }
     void setSkillName(String s) { p.edit().putString("skill", s).apply(); }
 
+    /** Accent theme: green, amber, cyan or you (wallpaper colors). */
+    String accent() { return p.getString("accent", "green"); }
+    void setAccent(String a) { p.edit().putString("accent", a).apply(); }
+
     boolean ramp() { return p.getBoolean("ramp", true); }
     void setRamp(boolean v) { p.edit().putBoolean("ramp", v).apply(); }
 

@@ -2,23 +2,82 @@ package dev.ayaz.november30;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
+import java.util.Locale;
 
-/** Small helpers for building the UI in code. */
+/** Terminal-flavoured Material 3 palette and component builders. */
 final class Ui {
     private Ui() {}
 
-    static final int BG = 0xff0b0e13, CARD = 0xff171c25, CARD_2 = 0xff222a37, GOLD = 0xffffd43b,
-            WHITE = 0xfff5f6fa, MUTED = 0xffa0a7b5, GREEN = 0xff50d6a2, RED = 0xffff6b6b, TRACK = 0xff2a3140;
+    static final String GREEN = "green", AMBER = "amber", CYAN = "cyan", YOU = "you";
+
+    // Fixed terminal neutrals.
+    static final int BG = 0xff0b0f0c, SURFACE = 0xff111712, SURFACE_HI = 0xff1a231c, OUTLINE = 0xff2a362c,
+            TEXT = 0xffd8e6d9, MUTED = 0xff83978a, ERROR = 0xffff7a7a;
+    // Accent, set from the chosen theme.
+    static int ACCENT = 0xff7cf29a, ON_ACCENT = 0xff04210e, ACCENT_DIM = 0xff15331f;
+
+    static final Typeface MONO = Typeface.MONOSPACE;
+    static final Typeface MONO_BOLD = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD);
+
+    static void init(Context c, String accent) {
+        ACCENT = accentColor(c, accent);
+        ON_ACCENT = blend(ACCENT, Color.BLACK, 0.85f);
+        ACCENT_DIM = blend(ACCENT, SURFACE, 0.84f);
+    }
+
+    static boolean dynamicAvailable() { return Build.VERSION.SDK_INT >= 31; }
+
+    static int accentColor(Context c, String accent) {
+        switch (accent) {
+            case AMBER: return 0xffffc660;
+            case CYAN: return 0xff6ddcff;
+            case YOU:
+                if (dynamicAvailable()) return c.getColor(android.R.color.system_accent1_200);
+                return 0xff7cf29a;
+            default: return 0xff7cf29a;
+        }
+    }
+
+    static int overlayFor(String accent) {
+        switch (accent) {
+            case AMBER: return R.style.ThemeOverlay_Term_Amber;
+            case CYAN: return R.style.ThemeOverlay_Term_Cyan;
+            default: return 0;
+        }
+    }
+
+    /** Linear blend: t=0 gives a, t=1 gives b. */
+    static int blend(int a, int b, float t) {
+        float s = 1 - t;
+        return Color.argb(255,
+                Math.round(Color.red(a) * s + Color.red(b) * t),
+                Math.round(Color.green(a) * s + Color.green(b) * t),
+                Math.round(Color.blue(a) * s + Color.blue(b) * t));
+    }
 
     static int dp(Context c, float v) { return Math.round(v * c.getResources().getDisplayMetrics().density); }
+
+    static ColorStateList checked(int on, int off) {
+        return new ColorStateList(new int[][]{{android.R.attr.state_checked}, {}}, new int[]{on, off});
+    }
 
     static GradientDrawable round(Context c, int color, float radiusDp) {
         GradientDrawable d = new GradientDrawable();
@@ -27,18 +86,20 @@ final class Ui {
         return d;
     }
 
-    static GradientDrawable outlined(Context c, int fill, int stroke, float radiusDp) {
+    static GradientDrawable outlined(Context c, int fill, int stroke, float radiusDp, float strokeDp) {
         GradientDrawable d = round(c, fill, radiusDp);
-        d.setStroke(dp(c, 2), stroke);
+        d.setStroke(dp(c, strokeDp), stroke);
         return d;
     }
+
+    // ---------------------------------------------------------------- layout
 
     static TextView text(Context c, CharSequence s, float sp, int color, boolean bold) {
         TextView t = new TextView(c);
         t.setText(s);
         t.setTextSize(sp);
         t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        t.setTypeface(bold ? MONO_BOLD : MONO);
         return t;
     }
 
@@ -48,17 +109,10 @@ final class Ui {
         return l;
     }
 
-    static LinearLayout horizontal(Context c) {
+    static LinearLayout row(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.HORIZONTAL);
         l.setGravity(Gravity.CENTER_VERTICAL);
-        return l;
-    }
-
-    static LinearLayout card(Context c) {
-        LinearLayout l = vertical(c);
-        l.setBackground(round(c, CARD, 18));
-        pad(l, c, 16, 14, 16, 14);
         return l;
     }
 
@@ -66,7 +120,6 @@ final class Ui {
         v.setPadding(dp(c, l), dp(c, t), dp(c, r), dp(c, b));
     }
 
-    /** Adds a full-width child with a bottom margin. */
     static void add(LinearLayout parent, View child, int bottomDp) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -78,44 +131,144 @@ final class Ui {
         return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w);
     }
 
-    static TextView section(Context c, String title) {
-        TextView t = text(c, title, 13, GOLD, true);
-        t.setLetterSpacing(0.12f);
-        pad(t, c, 2, 12, 0, 2);
+    static View gap(Context c, int dp) {
+        View v = new View(c);
+        v.setLayoutParams(new LinearLayout.LayoutParams(dp(c, dp), dp(c, dp)));
+        return v;
+    }
+
+    /** "## title" header with optional right-aligned meta text. */
+    static LinearLayout section(Context c, String title, String meta) {
+        LinearLayout r = row(c);
+        pad(r, c, 4, 14, 4, 8);
+        TextView hash = text(c, "## ", 14, MUTED, true);
+        r.addView(hash);
+        r.addView(text(c, title, 14, ACCENT, true), weight(1));
+        if (meta != null) r.addView(text(c, meta, 12, MUTED, false));
+        return r;
+    }
+
+    /** A line like "> key: value" for terminal output. */
+    static TextView line(Context c, String s, int color) {
+        TextView t = text(c, s, 13, color, false);
+        t.setLineSpacing(0, 1.2f);
+        pad(t, c, 0, 2, 0, 2);
         return t;
     }
 
-    static TextView button(Context c, String label, boolean primary) {
-        TextView b = text(c, label, 14, primary ? BG : WHITE, true);
-        b.setGravity(Gravity.CENTER);
-        b.setBackground(round(c, primary ? GOLD : CARD_2, 12));
-        pad(b, c, 16, 12, 16, 12);
-        b.setClickable(true);
-        b.setFocusable(true);
+    // ---------------------------------------------------------------- material components
+
+    static final class Card {
+        final MaterialCardView view;
+        final LinearLayout body;
+        Card(MaterialCardView view, LinearLayout body) { this.view = view; this.body = body; }
+        void style(boolean active) {
+            view.setCardBackgroundColor(active ? ACCENT_DIM : SURFACE);
+            view.setStrokeColor(active ? blend(ACCENT, SURFACE, 0.35f) : OUTLINE);
+        }
+    }
+
+    static Card card(Context c) {
+        MaterialCardView v = new MaterialCardView(c);
+        v.setRadius(dp(c, 20));
+        v.setCardElevation(0);
+        v.setStrokeWidth(dp(c, 1));
+        LinearLayout body = vertical(c);
+        pad(body, c, 16, 14, 16, 14);
+        v.addView(body, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        Card card = new Card(v, body);
+        card.style(false);
+        return card;
+    }
+
+    static final int FILLED = 0, TONAL = 1, OUTLINED = 2;
+
+    static MaterialButton button(Context c, String label, int style) {
+        MaterialButton b = new MaterialButton(c);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTypeface(MONO_BOLD);
+        b.setCornerRadius(dp(c, 16));
+        b.setInsetTop(0);
+        b.setInsetBottom(0);
+        b.setMinHeight(dp(c, 48));
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        switch (style) {
+            case FILLED:
+                b.setBackgroundTintList(ColorStateList.valueOf(ACCENT));
+                b.setTextColor(ON_ACCENT);
+                break;
+            case TONAL:
+                b.setBackgroundTintList(ColorStateList.valueOf(ACCENT_DIM));
+                b.setTextColor(ACCENT);
+                break;
+            default:
+                b.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
+                b.setStrokeColor(ColorStateList.valueOf(OUTLINE));
+                b.setStrokeWidth(dp(c, 1));
+                b.setTextColor(TEXT);
+                break;
+        }
         return b;
     }
 
-    static TextView chip(Context c, String label) {
-        TextView t = text(c, label, 13, WHITE, true);
-        t.setGravity(Gravity.CENTER);
-        pad(t, c, 12, 8, 12, 8);
-        t.setClickable(true);
-        return t;
+    static MaterialCheckBox checkbox(Context c) {
+        MaterialCheckBox cb = new MaterialCheckBox(c);
+        cb.setButtonTintList(checked(ACCENT, MUTED));
+        cb.setButtonIconTintList(ColorStateList.valueOf(ON_ACCENT));
+        return cb;
     }
 
-    static void styleChip(TextView chip, boolean on) {
-        Context c = chip.getContext();
-        chip.setBackground(on ? round(c, GOLD, 20) : outlined(c, CARD, TRACK, 20));
-        chip.setTextColor(on ? BG : WHITE);
+    static Chip chip(Context c, String label) {
+        Chip chip = new Chip(c);
+        chip.setText(label);
+        chip.setTypeface(MONO_BOLD);
+        chip.setCheckable(true);
+        chip.setCheckedIconVisible(true);
+        chip.setCheckedIconTint(ColorStateList.valueOf(ACCENT));
+        chip.setChipBackgroundColor(checked(ACCENT_DIM, SURFACE));
+        chip.setChipStrokeColor(checked(ACCENT, OUTLINE));
+        chip.setChipStrokeWidth(dp(c, 1));
+        chip.setTextColor(checked(ACCENT, TEXT));
+        return chip;
     }
 
-    static EditText input(Context c, String hint, boolean multiline) {
-        EditText e = new EditText(c);
-        e.setHint(hint);
-        e.setTextColor(WHITE);
-        e.setHintTextColor(MUTED);
+    static MaterialSwitch toggle(Context c, String label, boolean on) {
+        MaterialSwitch s = new MaterialSwitch(c);
+        s.setText(label);
+        s.setTypeface(MONO);
+        s.setTextSize(14);
+        s.setTextColor(TEXT);
+        s.setThumbTintList(checked(ON_ACCENT, MUTED));
+        s.setTrackTintList(checked(ACCENT, SURFACE_HI));
+        s.setTrackDecorationTintList(checked(Color.TRANSPARENT, OUTLINE));
+        s.setChecked(on);
+        pad(s, c, 0, 4, 0, 4);
+        return s;
+    }
+
+    static TextInputLayout field(Context c, String hint, boolean multiline) {
+        TextInputLayout til = new TextInputLayout(c);
+        til.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
+        float r = dp(c, 14);
+        til.setBoxCornerRadii(r, r, r, r);
+        til.setBoxStrokeWidth(dp(c, 1));
+        til.setBoxStrokeWidthFocused(dp(c, 2));
+        til.setBoxStrokeColorStateList(new ColorStateList(
+                new int[][]{{android.R.attr.state_focused}, {}}, new int[]{ACCENT, OUTLINE}));
+        til.setHintTextColor(ColorStateList.valueOf(ACCENT));
+        til.setDefaultHintTextColor(ColorStateList.valueOf(MUTED));
+        til.setPrefixTextColor(ColorStateList.valueOf(MUTED));
+        til.setSuffixTextColor(ColorStateList.valueOf(MUTED));
+        til.setTypeface(MONO);
+        til.setHint(hint);
+
+        TextInputEditText e = new TextInputEditText(til.getContext());
+        e.setTextColor(TEXT);
+        e.setTypeface(MONO);
         e.setTextSize(15);
-        e.setBackgroundTintList(ColorStateList.valueOf(TRACK));
         if (multiline) {
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                     | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -124,32 +277,39 @@ final class Ui {
         } else {
             e.setSingleLine(true);
         }
-        return e;
+        til.addView(e, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return til;
     }
 
-    /** A thin horizontal bar showing fraction 0..1. */
-    static View bar(Context c, float fraction, int color) {
-        LinearLayout track = horizontal(c);
-        track.setBackground(round(c, TRACK, 4));
-        View fill = new View(c);
-        fill.setBackground(round(c, color, 4));
-        float f = Math.max(0f, Math.min(1f, fraction));
-        track.addView(fill, new LinearLayout.LayoutParams(0, dp(c, 8), f));
-        View rest = new View(c);
-        track.addView(rest, new LinearLayout.LayoutParams(0, dp(c, 8), 1f - f));
-        track.setWeightSum(1f);
-        return track;
+    static LinearProgressIndicator progress(Context c, int value, int max, int color, int thicknessDp) {
+        LinearProgressIndicator p = new LinearProgressIndicator(c);
+        p.setMax(Math.max(1, max));
+        p.setProgressCompat(Math.min(value, Math.max(1, max)), false);
+        p.setIndicatorColor(color);
+        p.setTrackColor(SURFACE_HI);
+        p.setTrackThickness(dp(c, thicknessDp));
+        p.setTrackCornerRadius(dp(c, thicknessDp / 2f));
+        return p;
+    }
+
+    // ---------------------------------------------------------------- formatting
+
+    static String asciiBar(int value, int max, int width) {
+        int filled = max <= 0 ? 0 : Math.round(width * Math.min(1f, value / (float) max));
+        StringBuilder b = new StringBuilder("[");
+        for (int i = 0; i < width; i++) b.append(i < filled ? '█' : '░');
+        return b.append(']').toString();
     }
 
     static String time(int minutes) {
-        int h = minutes / 60, m = minutes % 60;
-        String ampm = h < 12 ? "AM" : "PM";
-        int h12 = h % 12 == 0 ? 12 : h % 12;
-        return String.format(java.util.Locale.US, "%d:%02d %s", h12, m, ampm);
+        return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60);
     }
 
     static String number(double v) {
-        if (v == Math.rint(v)) return String.format(java.util.Locale.US, "%,d", (long) v);
-        return String.format(java.util.Locale.US, "%,.1f", v);
+        if (v == Math.rint(v)) return String.format(Locale.US, "%,d", (long) v);
+        return String.format(Locale.US, "%,.1f", v);
     }
+
+    static String two(int v) { return String.format(Locale.US, "%02d", v); }
 }

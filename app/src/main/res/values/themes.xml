@@ -1,13 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FF0B0E13</color>
-    <color name="gold">#FFFFD43B</color>
-    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
-        <item name="android:colorPrimary">@color/bg</item>
-        <item name="android:colorPrimaryDark">@color/bg</item>
-        <item name="android:colorAccent">@color/gold</item>
-        <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/bg</item>
-        <item name="android:navigationBarColor">@color/bg</item>
+    <color name="term_bg">#FF0B0F0C</color>
+    <color name="term_green">#FF7CF29A</color>
+
+    <!-- Material 3 dark theme with a terminal palette and monospace type. -->
+    <style name="AppTheme" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/term_green</item>
+        <item name="colorOnPrimary">#FF04210E</item>
+        <item name="colorPrimaryContainer">#FF15331F</item>
+        <item name="colorOnPrimaryContainer">#FFB8FFC8</item>
+        <item name="colorSecondary">@color/term_green</item>
+        <item name="colorOnSecondary">#FF04210E</item>
+        <item name="colorSecondaryContainer">#FF1C3A27</item>
+        <item name="colorOnSecondaryContainer">#FFB8FFC8</item>
+        <item name="colorTertiary">#FF6DDCFF</item>
+        <item name="colorError">#FFFF7A7A</item>
+        <item name="colorSurface">#FF111712</item>
+        <item name="colorOnSurface">#FFD8E6D9</item>
+        <item name="colorOnSurfaceVariant">#FF83978A</item>
+        <item name="colorOutline">#FF2A362C</item>
+        <item name="colorOutlineVariant">#FF222C24</item>
+        <item name="colorSurfaceContainerLowest">#FF0B0F0C</item>
+        <item name="colorSurfaceContainerLow">#FF0F1510</item>
+        <item name="colorSurfaceContainer">#FF141B16</item>
+        <item name="colorSurfaceContainerHigh">#FF18201A</item>
+        <item name="colorSurfaceContainerHighest">#FF1D261F</item>
+        <item name="android:colorBackground">@color/term_bg</item>
+        <item name="android:windowBackground">@color/term_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="fontFamily">monospace</item>
+        <item name="textAppearanceDisplaySmall">@style/TextAppearance.Term.DisplaySmall</item>
+        <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Term.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Term.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Term.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Term.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Term.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Term.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Term.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Term.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Term.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/TextAppearance.Term.LabelSmall</item>
+    </style>
+
+    <style name="TextAppearance.Term.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.TitleLarge" parent="TextAppearance.Material3.TitleLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.TitleMedium" parent="TextAppearance.Material3.TitleMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.TitleSmall" parent="TextAppearance.Material3.TitleSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.BodyLarge" parent="TextAppearance.Material3.BodyLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.BodyMedium" parent="TextAppearance.Material3.BodyMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.BodySmall" parent="TextAppearance.Material3.BodySmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.LabelLarge" parent="TextAppearance.Material3.LabelLarge"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.LabelMedium" parent="TextAppearance.Material3.LabelMedium"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+    <style name="TextAppearance.Term.LabelSmall" parent="TextAppearance.Material3.LabelSmall"><item name="fontFamily">monospace</item><item name="android:fontFamily">monospace</item></style>
+
+    <!-- Accent overlays applied at runtime from Settings. -->
+    <style name="ThemeOverlay.Term.Amber" parent="">
+        <item name="colorPrimary">#FFFFC660</item>
+        <item name="colorOnPrimary">#FF2A1C00</item>
+        <item name="colorPrimaryContainer">#FF3A2C10</item>
+        <item name="colorOnPrimaryContainer">#FFFFE2A8</item>
+        <item name="colorSecondary">#FFFFC660</item>
+        <item name="colorOnSecondary">#FF2A1C00</item>
+        <item name="colorSecondaryContainer">#FF3A2E14</item>
+        <item name="colorOnSecondaryContainer">#FFFFE2A8</item>
+    </style>
+    <style name="ThemeOverlay.Term.Cyan" parent="">
+        <item name="colorPrimary">#FF6DDCFF</item>
+        <item name="colorOnPrimary">#FF002533</item>
+        <item name="colorPrimaryContainer">#FF0F3340</item>
+        <item name="colorOnPrimaryContainer">#FFBDEFFF</item>
+        <item name="colorSecondary">#FF6DDCFF</item>
+        <item name="colorOnSecondary">#FF002533</item>
+        <item name="colorSecondaryContainer">#FF143A47</item>
+        <item name="colorOnSecondaryContainer">#FFBDEFFF</item>
     </style>
 </resources>
